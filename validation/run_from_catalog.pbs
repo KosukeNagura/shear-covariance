@@ -1,0 +1,50 @@
+#!/bin/bash
+#PBS -N shpkg_catalog
+#PBS -q mini
+#PBS -l select=1:ncpus=8:mem=32gb
+#PBS -l walltime=72:00:00
+
+# Submit from the uploaded package root. No change to job 605073 or its files.
+set -e
+cd "$PBS_O_WORKDIR"
+PACKAGE_ROOT="$PWD"
+BASE='/lustre/work/Kousuke0128/local/lensing'
+RUN_PARENT="$BASE/shear-covariance-reproducibility_validation_from_catalog"
+mkdir -p "$RUN_PARENT/log"
+# Shared-filesystem live log, independent of PBS stdout staging.
+exec > "$RUN_PARENT/log/from_catalog.${PBS_JOBID}.txt" 2>&1
+echo "Job $PBS_JOBID started at $(date)"
+source /home/anaconda3/bin/activate
+conda activate cellcov_3
+export OMP_NUM_THREADS=8
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export PYTHONNOUSERSITE=1
+unset PYTHONPATH
+
+# Freeze the exact code for this run; no old outputs or catalog copies.
+SNAPSHOT="$RUN_PARENT/code.${PBS_JOBID}"
+python - "$PACKAGE_ROOT" "$SNAPSHOT" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+source, target = map(Path, sys.argv[1:])
+target.mkdir(exist_ok=False)
+for folder in ('examples', 'validation'):
+    for path in (source/folder).rglob('*.py'):
+        if 'outputs' in path.relative_to(source).parts:
+            continue
+        destination = target/path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+PY
+
+/usr/bin/time -v python -u "$SNAPSHOT/validation/run_from_catalog.py" \
+  --catalog /lustre/work/xiangchong.li/work/S19ACatalogs/catalog_obs_reGaus_public/XMM.fits \
+  --cl-file /lustre/work/Kousuke0128/cell/kappa/outputs/HSCY3mask_Nside2048_bin4_1000sims.npz \
+  --reference-model "$BASE/shear_XMM_Nside512_signal_only_quartic_counts/outputs/model.npz" \
+  --reference-signal "$BASE/shear_XMM_Nside512_signal_only_sims/outputs/shear_signal_3000sims.npz" \
+  --reference-noise "$BASE/shear_XMM_Nside512_signal_plus_shape_noise_sims/outputs/shear_signal_shape_noise_catalog_3000sims.npz" \
+  --work-root "$RUN_PARENT/run.${PBS_JOBID}" \
+  --threads 8 --nsims 3000
+echo "Upstream reproduction completed at $(date)"

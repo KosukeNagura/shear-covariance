@@ -1,0 +1,3 @@
+# Optional tooling for package developers; not required by analysis jobs.
+-r requirements-current.txt
+pytest

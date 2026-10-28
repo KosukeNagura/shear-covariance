@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+*.fits
+*.fits.gz
+*.npz
+*.npy
+*.checkpoint.npz
+log/
+logs/
+outputs/
+*.pbs.out
+*.pbs.err
+*.JOBID.txt
+.DS_Store
+
+# PBS spool files and private local configuration
+*.o[0-9]*
+*.e[0-9]*
+.env
+.env.*
+!.env.example
+*.pem

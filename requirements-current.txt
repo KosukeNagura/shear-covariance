@@ -1,0 +1,9 @@
+# Versions reported by the successful idark cellcov_3 preflight on 2026-10-23.
+# Python version and platform build are not recorded here; capture them before release.
+numpy==2.3.4
+healpy==1.18.1
+scipy  # Required by the established covariance.py utility.
+treecorr==5.1.2
+astropy==7.1.1
+matplotlib
+jupyter

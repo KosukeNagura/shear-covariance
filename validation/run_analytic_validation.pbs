@@ -1,0 +1,46 @@
+#!/bin/bash
+#PBS -N shpkg_analytic
+#PBS -q mini2
+#PBS -l select=1:ncpus=1:mem=16gb
+#PBS -l walltime=24:00:00
+
+set -e
+cd "$PBS_O_WORKDIR"
+PACKAGE_ROOT="$PWD"
+BASE='/lustre/work/Kousuke0128/local/lensing'
+UPSTREAM="$BASE/shear-covariance-reproducibility_validation_from_catalog/run.605199.idark"
+RUN_PARENT="$BASE/shear-covariance-reproducibility_validation_analytic"
+mkdir -p "$RUN_PARENT/log"
+exec > "$RUN_PARENT/log/analytic.${PBS_JOBID}.txt" 2>&1
+echo "Job $PBS_JOBID started at $(date)"
+source /home/anaconda3/bin/activate
+conda activate cellcov_3
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export PYTHONNOUSERSITE=1
+unset PYTHONPATH
+
+SNAPSHOT="$RUN_PARENT/code.${PBS_JOBID}"
+python - "$PACKAGE_ROOT" "$SNAPSHOT" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+source, target = map(Path, sys.argv[1:])
+target.mkdir(exist_ok=False)
+for folder in ('examples', 'validation'):
+    for path in (source/folder).rglob('*.py'):
+        if 'outputs' in path.relative_to(source).parts:
+            continue
+        destination = target/path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+PY
+
+python "$SNAPSHOT/validation/test_analytic_inputs.py"
+/usr/bin/time -v python -u "$SNAPSHOT/validation/run_analytic_validation.py" \
+  --upstream-run "$UPSTREAM" \
+  --reference-signal-ht "$BASE/shear_XMM_Nside512_signal_only_quartic_counts_down_sampling/outputs/ht_p0.001.npz" \
+  --reference-noise-ht "$BASE/shear_XMM_Nside512_signal_plus_shape_noise_quartic_counts_down_sampling/outputs/ht_p0.001.npz" \
+  --work-root "$RUN_PARENT/run.${PBS_JOBID}"
+echo "Analytic validation completed at $(date)"
